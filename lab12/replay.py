@@ -117,12 +117,39 @@ def replay(segs, make_stream, mode="fastest", cost_seed=0, spike_prob=0.02, base
 def compare_with_tol(golden, new, atol=1e-3, rtol=1e-3):
     """Segment-by-segment comparison. A segment 'differs' if any command is outside atol + rtol * |golden|.
     Also reports how many segments are not bit-identical, to show why exact equality is the wrong test."""
-    # TODO (Bước 1): hãy tự cài hàm này. Gợi ý:
-    #   golden và new có shape (n_seg, T), NaN ở phần đệm. Một đoạn 'lệch' nếu có lệnh nào vượt atol + rtol
-    #   * |golden|. Hai NaN ở cùng vị trí coi là bằng nhau. Trả dict có đúng các khoá: segments,
-    #   differ_beyond_tol, not_bit_identical (số đoạn không giống TỪNG BIT), max_abs_diff, atol, rtol,
-    #   differing_segments (tối đa 20 chỉ số đầu, dạng list).
-    raise NotImplementedError("TODO compare_with_tol: xem GUIDE.md, Bước 1")
+    golden = np.asarray(golden)
+    new = np.asarray(new)
+
+    nan_g = np.isnan(golden)
+    nan_n = np.isnan(new)
+
+    nan_mismatch = (nan_g != nan_n)
+    valid = (~nan_g) & (~nan_n)
+
+    val_diff = valid & (golden != new)
+    not_identical_mask = nan_mismatch | val_diff
+    seg_not_identical = np.any(not_identical_mask, axis=1)
+    not_bit_identical = int(np.sum(seg_not_identical))
+
+    abs_diff = np.abs(golden - new)
+    tol = atol + rtol * np.abs(golden)
+    beyond_tol_elem = nan_mismatch | (valid & (abs_diff > tol))
+    seg_beyond_tol = np.any(beyond_tol_elem, axis=1)
+
+    differing_segments = [int(i) for i in np.flatnonzero(seg_beyond_tol)]
+    differ_beyond_tol = len(differing_segments)
+
+    max_abs_diff = float(np.max(abs_diff[valid])) if np.any(valid) else 0.0
+
+    return {
+        "segments": int(golden.shape[0]),
+        "differ_beyond_tol": int(differ_beyond_tol),
+        "not_bit_identical": int(not_bit_identical),
+        "max_abs_diff": float(max_abs_diff),
+        "atol": float(atol),
+        "rtol": float(rtol),
+        "differing_segments": differing_segments[:20],
+    }
 
 
 def summation_order_demo(n=1_000_000, seed=0):
